@@ -120,29 +120,16 @@ class WhisperDictationApp(rumps.App):
         self.key_monitor_thread.start()
     
     def monitor_keys(self):
-        # Track state of key 63 (Globe/Fn key)
-        self.is_recording_with_key63 = False
-        
-        def on_press(key):
-            # Removed logging for every key press; log only when target key is pressed
-            if hasattr(key, 'vk') and key.vk == self.trigger_key:
-                print(f"DEBUG: Target key (vk={key.vk}) pressed")
-        
+        # We only need on_release
         def on_release(key):
-            if hasattr(key, 'vk'):
-                print(f"DEBUG: Key with vk={key.vk} released")
-                if key.vk == self.trigger_key:
-                    if not self.recording and not self.is_recording_with_key63:
-                        print(f"TARGET KEY RELEASED! Globe/Fn key (vk={key.vk}) released - STARTING recording")
-                        self.is_recording_with_key63 = True
-                        self.start_recording()
-                    elif self.recording and self.is_recording_with_key63:
-                        print(f"TARGET KEY RELEASED AGAIN! Globe/Fn key (vk={key.vk}) released - STOPPING recording")
-                        self.is_recording_with_key63 = False
-                        self.stop_recording()
-        
+            if hasattr(key, 'vk') and key.vk == self.trigger_key:
+                if self.recording:
+                    self.stop_recording()
+                else:
+                    self.start_recording()
+
         try:
-            with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+            with keyboard.Listener(on_release=on_release) as listener:
                 print(f"Keyboard listener started - listening for key events")
                 print(f"Target key is Globe/Fn key (vk={self.trigger_key})")
                 print(f"Press and release the target key to control recording")
