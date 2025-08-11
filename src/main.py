@@ -12,6 +12,7 @@ from pynput import keyboard
 from pynput.keyboard import Key, Controller
 import faster_whisper
 import signal
+import queue
 
 # Set up a global flag for handling SIGINT
 exit_flag = False
@@ -45,6 +46,9 @@ class WhisperDictationApp(rumps.App):
         self.audio = pyaudio.PyAudio()
         self.frames = []
         self.keyboard_controller = Controller()
+        # Toggle for streaming transcription
+        self.enable_streaming = False
+        self.audio_queue = None
         
         # Initialize Whisper model
         self.model = None
@@ -165,15 +169,20 @@ class WhisperDictationApp(rumps.App):
             print("Model not loaded. Please wait for the model to finish loading.")
             self.status_item.title = "Status: Waiting for model to load"
             return
-            
+
         self.frames = []
         self.recording = True
-        
+
+        if self.enable_streaming:
+            self.audio_queue = queue.Queue()
+            self.transcribe_thread = threading.Thread(target=self.transcribe_stream)
+            self.transcribe_thread.start()
+
         # Update UI
         self.title = "🎙️ (Recording)"
         self.status_item.title = "Status: Recording..."
         print("Recording started. Speak now...")
-        
+
         # Start recording thread
         self.recording_thread = threading.Thread(target=self.record_audio)
         self.recording_thread.start()
@@ -182,15 +191,24 @@ class WhisperDictationApp(rumps.App):
         self.recording = False
         if hasattr(self, 'recording_thread'):
             self.recording_thread.join()
-        
-        # Update UI
-        self.title = "🎙️ (Transcribing)"
-        self.status_item.title = "Status: Transcribing..."
-        print("Recording stopped. Transcribing...")
-        
-        # Process in background
-        transcribe_thread = threading.Thread(target=self.process_recording)
-        transcribe_thread.start()
+        if self.enable_streaming:
+            if self.audio_queue is not None:
+                self.audio_queue.put(None)
+            if hasattr(self, 'transcribe_thread'):
+                self.transcribe_thread.join()
+            self.audio_queue = None
+            self.title = "🎙️"
+            self.status_item.title = "Status: Ready"
+            print("Recording stopped.")
+        else:
+            # Update UI
+            self.title = "🎙️ (Transcribing)"
+            self.status_item.title = "Status: Transcribing..."
+            print("Recording stopped. Transcribing...")
+
+            # Process in background
+            transcribe_thread = threading.Thread(target=self.process_recording)
+            transcribe_thread.start()
     
     def process_recording(self):
         # Transcribe and insert text
@@ -210,14 +228,17 @@ class WhisperDictationApp(rumps.App):
             input=True,
             frames_per_buffer=self.chunk
         )
-        
+
         while self.recording:
             data = stream.read(self.chunk)
-            self.frames.append(data)
-            
+            if self.enable_streaming and self.audio_queue is not None:
+                self.audio_queue.put(data)
+            else:
+                self.frames.append(data)
+
         stream.stop_stream()
         stream.close()
-    
+
     def transcribe_audio(self):
         if not self.frames:
             self.title = "🎙️"
@@ -266,6 +287,26 @@ class WhisperDictationApp(rumps.App):
         print("Typing text at cursor position...")
         self.keyboard_controller.type(text)
         print("Text typed successfully")
+
+    def transcribe_stream(self):
+        def generator():
+            while True:
+                chunk = self.audio_queue.get()
+                if chunk is None:
+                    break
+                samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+                yield samples
+
+        try:
+            for segment in self.model.transcribe(generator, beam_size=5):
+                if segment.text:
+                    self.insert_text(segment.text)
+        except Exception as e:
+            print(f"Transcription error: {e}")
+            self.status_item.title = "Status: Transcription error"
+        finally:
+            self.title = "🎙️"
+            self.status_item.title = "Status: Ready"
     
     def handle_shutdown(self, signal, frame):
         """This method is no longer used with the global handler approach"""
