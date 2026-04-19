@@ -27,9 +27,11 @@ class TextSelection:
             
             # Copy selected text to clipboard
             with self.keyboard_controller.pressed(Key.cmd):
+                time.sleep(0.05)
                 self.keyboard_controller.press('c')
                 self.keyboard_controller.release('c')
-            
+                time.sleep(0.05)
+
             # Small delay to ensure copy operation completes
             time.sleep(0.2)
             
@@ -72,8 +74,10 @@ class TextSelection:
         try:
             # Select all text
             with self.keyboard_controller.pressed(Key.cmd):
+                time.sleep(0.05)
                 self.keyboard_controller.press('a')
                 self.keyboard_controller.release('a')
+                time.sleep(0.05)
             
             time.sleep(0.1)
             
@@ -102,9 +106,11 @@ class TextSelection:
             
             # Copy selected text
             with self.keyboard_controller.pressed(Key.cmd):
+                time.sleep(0.05)
                 self.keyboard_controller.press('c')
                 self.keyboard_controller.release('c')
-            
+                time.sleep(0.05)
+
             time.sleep(0.2)
             
             # Get copied text

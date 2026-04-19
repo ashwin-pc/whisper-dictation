@@ -1,5 +1,7 @@
 import logging
+import logging.handlers
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 class ColoredFormatter(logging.Formatter):
@@ -51,12 +53,26 @@ def setup_logging():
         handlers=[]
     )
     
-    handler = logging.StreamHandler()
-    handler.setFormatter(ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%H:%M:%S'))
-    
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%H:%M:%S'))
+
+    # File handler for crash diagnostics (5MB, keep 3 rotations)
+    log_dir = Path.home() / '.whisper-dictation' / 'logs'
+    log_dir.mkdir(parents=True, exist_ok=True)
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_dir / 'whisper-dictation.log',
+        maxBytes=5 * 1024 * 1024,
+        backupCount=3,
+    )
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+    ))
+
     logger = logging.getLogger()
     logger.handlers = []
-    logger.addHandler(handler)
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
     logger.setLevel(getattr(logging, log_level, logging.INFO))
-    
+
     return logger
