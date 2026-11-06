@@ -4,6 +4,7 @@ import json
 import os
 from dotenv import load_dotenv
 from logger_config import setup_logging
+from text_safety import build_bedrock_request, sanitize_for_typing
 
 # Load environment variables
 load_dotenv()
@@ -34,25 +35,9 @@ class BedrockClient:
         if not self.client:
             raise Exception("Bedrock client not initialized")
         
-        # Construct the prompt for Claude
-        prompt = f"""You are helping a user edit text based on voice commands. The user has selected some text and given a voice instruction for how to modify it.
-
-Selected text: "{selected_text}"
-Voice instruction: "{transcribed_text}"
-
-Please modify the selected text according to the voice instruction. Return only the modified text without any explanation or additional formatting."""
-        
-        # Prepare the request body for Anthropic Claude
-        request_body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1000,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        }
+        # Keep trusted operating instructions in the system field and encode
+        # selected/transcribed text as bounded JSON data in the user message.
+        request_body = build_bedrock_request(transcribed_text, selected_text)
         
         try:
             # Invoke the model
@@ -68,7 +53,11 @@ Please modify the selected text according to the voice instruction. Return only 
             
             # Extract the generated text
             if 'content' in response_body and len(response_body['content']) > 0:
-                enhanced_text = response_body['content'][0]['text'].strip()
+                enhanced_text = sanitize_for_typing(
+                    response_body['content'][0]['text']
+                )
+                if not enhanced_text:
+                    raise ValueError("Bedrock returned no safe text to type")
                 logger.debug(f"Bedrock response: {enhanced_text}")
                 return enhanced_text
             else:

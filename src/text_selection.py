@@ -4,6 +4,7 @@ import time
 from AppKit import NSPasteboard, NSStringPboardType
 from pynput.keyboard import Key, Controller
 from logger_config import setup_logging
+from text_safety import sanitize_for_typing
 
 logger = setup_logging()
 
@@ -56,8 +57,13 @@ class TextSelection:
         If no text is selected, inserts at cursor position.
         """
         try:
-            # Type the replacement text
-            self.keyboard_controller.type(new_text)
+            safe_text = sanitize_for_typing(new_text)
+            if not safe_text:
+                logger.warning(
+                    "Replacement omitted because it contained no safe text"
+                )
+                return False
+            self.keyboard_controller.type(safe_text)
             return True
             
         except Exception as e:
@@ -70,6 +76,13 @@ class TextSelection:
         Fallback method when specific text selection fails.
         """
         try:
+            safe_text = sanitize_for_typing(new_text)
+            if not safe_text:
+                logger.warning(
+                    "Replacement omitted because it contained no safe text"
+                )
+                return False
+
             # Select all text
             with self.keyboard_controller.pressed(Key.cmd):
                 self.keyboard_controller.press('a')
@@ -77,8 +90,7 @@ class TextSelection:
             
             time.sleep(0.1)
             
-            # Type replacement text
-            self.keyboard_controller.type(new_text)
+            self.keyboard_controller.type(safe_text)
             return True
             
         except Exception as e:
