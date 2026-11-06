@@ -12,6 +12,7 @@ from pynput.keyboard import Key, Controller
 import faster_whisper
 import signal
 from text_selection import TextSelection
+from text_safety import sanitize_for_typing
 from bedrock_client import BedrockClient
 from recording_indicator import RecordingIndicator
 from logger_config import setup_logging
@@ -423,9 +424,14 @@ class WhisperDictationApp(rumps.App):
     
     def insert_text(self, text):
         # Type text at cursor position without altering the clipboard
+        safe_text = sanitize_for_typing(text)
+        if not safe_text:
+            logger.warning("Text insertion omitted because it contained no safe text")
+            return False
         logger.debug("Typing text at cursor position...")
-        self.keyboard_controller.type(text)
+        self.keyboard_controller.type(safe_text)
         logger.debug("Text typed successfully")
+        return True
     
     def handle_shutdown(self, _signal, _frame):
         """This method is no longer used with the global handler approach"""
