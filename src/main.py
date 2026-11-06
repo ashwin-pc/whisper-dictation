@@ -15,6 +15,7 @@ from text_selection import TextSelection
 from bedrock_client import BedrockClient
 from recording_indicator import RecordingIndicator
 from logger_config import setup_logging
+from hotkey_events import log_configured_hotkey_event
 
 logger = setup_logging()
 
@@ -224,9 +225,9 @@ class WhisperDictationApp(rumps.App):
                 self.discard_recording()
                 return
 
-            # Removed logging for every key press; log only when target key is pressed
-            if hasattr(key, 'vk') and key.vk == self.trigger_key:
-                logger.debug(f"Target key (vk={key.vk}) pressed")
+            log_configured_hotkey_event(
+                logger, key, self.trigger_key, "pressed"
+            )
 
             # Right Shift handling - start recording immediately (optimistic)
             if key == Key.shift_r:
@@ -237,17 +238,17 @@ class WhisperDictationApp(rumps.App):
                     self.start_recording()
         
         def on_release(key):
-            if hasattr(key, 'vk'):
-                logger.debug(f"Key with vk={key.vk} released")
-                if key.vk == self.trigger_key:
-                    if not self.recording and not self.is_recording_with_key63:
-                        logger.debug(f"Globe/Fn key (vk={key.vk}) released - STARTING recording")
-                        self.is_recording_with_key63 = True
-                        self.start_recording()
-                    elif self.recording and self.is_recording_with_key63:
-                        logger.debug(f"Globe/Fn key (vk={key.vk}) released - STOPPING recording")
-                        self.is_recording_with_key63 = False
-                        self.stop_recording()
+            if log_configured_hotkey_event(
+                logger, key, self.trigger_key, "released"
+            ):
+                if not self.recording and not self.is_recording_with_key63:
+                    logger.debug(f"Globe/Fn key (vk={key.vk}) released - STARTING recording")
+                    self.is_recording_with_key63 = True
+                    self.start_recording()
+                elif self.recording and self.is_recording_with_key63:
+                    logger.debug(f"Globe/Fn key (vk={key.vk}) released - STOPPING recording")
+                    self.is_recording_with_key63 = False
+                    self.stop_recording()
 
             # Right Shift handling - check duration and discard or process
             if key == Key.shift_r and self.shift_held:
